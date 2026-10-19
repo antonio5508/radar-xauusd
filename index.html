@@ -1,0 +1,280 @@
+<title>Radar XAU</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Unbounded:wght@500;700&family=Archivo:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: single-column trading console, phone-first; verdict on top, chart, then 8 readings grid, data loader last */
+:root{
+  --bg:#F2F3F0; --panel:#FFFFFF; --line:#DDDFD8; --fg:#16181A; --muted:#62675F;
+  --gold:#9A7414; --gold-soft:#F1E6C6; --up:#17804F; --up-soft:#DDF1E6; --down:#B5372E; --down-soft:#F8E0DD; --flat:#7A7E76; --flat-soft:#ECEDE8;
+  --ema50:#2C6FB8; --ema200:#9A7414;
+  --f-display:"Unbounded","Archivo",system-ui,sans-serif;
+  --f-body:"Archivo",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --f-mono:"IBM Plex Mono",ui-monospace,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){:root:not([data-theme="light"]){
+  --bg:#0E0F10; --panel:#17191B; --line:#2A2D30; --fg:#EDEDE8; --muted:#9A9E96;
+  --gold:#E2B84A; --gold-soft:#3A3018; --up:#3FC383; --up-soft:#16301F; --down:#F0675C; --down-soft:#3A1C19; --flat:#9A9E96; --flat-soft:#232628;
+  --ema50:#6AA8EE; --ema200:#E2B84A; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#0E0F10; --panel:#17191B; --line:#2A2D30; --fg:#EDEDE8; --muted:#9A9E96;
+  --gold:#E2B84A; --gold-soft:#3A3018; --up:#3FC383; --up-soft:#16301F; --down:#F0675C; --down-soft:#3A1C19; --flat:#9A9E96; --flat-soft:#232628;
+  --ema50:#6AA8EE; --ema200:#E2B84A; color-scheme:dark}
+body{background:var(--bg);color:var(--fg);font-family:var(--f-body);font-size:15px;line-height:1.45}
+.wrap{max-width:560px;margin:0 auto;padding-block:20px 40px;padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));display:flex;flex-direction:column;gap:14px}
+header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.brand{font-family:var(--f-display);font-weight:700;font-size:20px;letter-spacing:.01em}
+.brand span{color:var(--gold)}
+.ctrls{display:flex;gap:8px}
+input[type=text],select{font:500 13px var(--f-mono);background:var(--panel);color:var(--fg);border:1px solid var(--line);border-radius:10px;padding:8px 10px;width:auto}
+input[type=text]{width:96px;text-transform:uppercase}
+.panel{background:var(--panel);border:1px solid var(--line);border-radius:16px;padding:16px}
+.notice{font-size:13px;color:var(--muted);background:var(--gold-soft);border-radius:10px;padding:8px 12px}
+.notice b{color:var(--fg)}
+.verdict{display:flex;flex-direction:column;gap:12px}
+.vtop{display:flex;align-items:center;gap:14px}
+.dial{width:62px;height:62px;flex:none;border-radius:50%;display:grid;place-items:center;font:700 15px var(--f-display);border:3px solid currentColor}
+.vlabel{font:700 19px var(--f-display);text-wrap:balance}
+.vsub{color:var(--muted);font-size:13px}
+.levels{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.lv{background:var(--bg);border-radius:10px;padding:8px 10px;min-width:0}
+.lv small{display:block;font-size:11px;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.lv b{font:500 14px var(--f-mono);font-variant-numeric:tabular-nums}
+.up{color:var(--up)} .down{color:var(--down)} .flat{color:var(--flat)}
+.chart-head{display:flex;justify-content:space-between;align-items:baseline;gap:8px;margin-bottom:8px;flex-wrap:wrap}
+.chart-head b{font:500 18px var(--f-mono);font-variant-numeric:tabular-nums}
+.legend{display:flex;gap:10px;font-size:12px;color:var(--muted)}
+.legend i{display:inline-block;width:10px;height:3px;border-radius:2px;margin-right:4px;vertical-align:middle}
+canvas{width:100%;height:190px;display:block}
+.sec{font-size:12px;letter-spacing:.08em;text-transform:uppercase;color:var(--muted);display:flex;justify-content:space-between;padding:0 2px}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}
+@media (max-width:380px){.grid{grid-template-columns:1fr}.levels{grid-template-columns:1fr}}
+.rd{background:var(--panel);border:1px solid var(--line);border-radius:14px;padding:12px;display:flex;flex-direction:column;gap:6px;min-width:0}
+.rd .t{display:flex;justify-content:space-between;align-items:center;gap:6px;font-weight:600;font-size:14px}
+.chip{font:500 11px var(--f-mono);padding:2px 8px;border-radius:999px;white-space:nowrap}
+.chip.up{background:var(--up-soft)} .chip.down{background:var(--down-soft)} .chip.flat{background:var(--flat-soft)}
+.rd .v{font:400 12.5px var(--f-mono);color:var(--muted);font-variant-numeric:tabular-nums}
+.btns{display:flex;gap:8px;flex-wrap:wrap}
+button,.file{font:600 14px var(--f-body);border-radius:12px;padding:11px 14px;border:1px solid var(--line);background:var(--bg);color:var(--fg);cursor:pointer}
+.file.primary{background:var(--gold);color:#16181A;border-color:var(--gold)}
+button:focus-visible,.file:focus-within,input:focus-visible,select:focus-visible{outline:2px solid var(--gold);outline-offset:2px}
+.file input{position:absolute;opacity:0;width:1px;height:1px}
+.help{font-size:13px;color:var(--muted);margin:10px 0 0}
+.err{color:var(--down);font-size:13px;margin-top:8px}
+.disc{font-size:12px;color:var(--muted);text-align:center;max-width:46ch;margin:4px auto 0}
+</style>
+
+<div class="wrap">
+  <header>
+    <div class="brand">Radar <span>XAU</span></div>
+    <div class="ctrls">
+      <input type="text" id="sym" value="XAUUSD" aria-label="Symbole">
+      <select id="tf" aria-label="Unité de temps">
+        <option>M15</option><option selected>H1</option><option>H4</option><option>D1</option>
+      </select>
+    </div>
+  </header>
+
+  <div class="notice" id="src"></div>
+
+  <section class="panel verdict" aria-live="polite">
+    <div class="vtop">
+      <div class="dial" id="dial">–</div>
+      <div><div class="vlabel" id="vlabel">–</div><div class="vsub" id="vsub"></div></div>
+    </div>
+    <div class="levels" id="levels"></div>
+  </section>
+
+  <section class="panel">
+    <div class="chart-head">
+      <b id="last">–</b>
+      <div class="legend"><span><i style="background:var(--fg)"></i>Prix</span><span><i style="background:var(--ema50)"></i>EMA 50</span><span><i style="background:var(--ema200)"></i>EMA 200</span></div>
+    </div>
+    <canvas id="cv"></canvas>
+  </section>
+
+  <div class="sec"><span>Lectures · 8 critères</span><span id="count"></span></div>
+  <div class="grid" id="grid"></div>
+
+  <section class="panel">
+    <div class="sec" style="padding:0 0 10px">Données en direct · Twelve Data</div>
+    <div class="btns">
+      <input type="text" id="key" placeholder="Ta clé API Twelve Data" autocomplete="off" style="flex:1;min-width:0;width:auto;text-transform:none">
+      <button id="live" type="button" class="file primary">Analyser en direct</button>
+    </div>
+    <p class="help">La clé reste enregistrée sur ton téléphone uniquement. Mise à jour automatique toutes les 2 minutes tant que la page est ouverte.</p>
+    <div class="btns" style="margin-top:12px">
+      <label class="file">Charger un export MT5 (.csv)<input type="file" id="file" accept=".csv,.txt"></label>
+      <button id="demo" type="button">Revoir l'exemple</button>
+    </div>
+    <div class="err" id="err" hidden></div>
+  </section>
+
+  <p class="disc">Outil d'aide à la décision, pas une prédiction. Il résume ce que disent les indicateurs sur les bougies chargées. Aucun résultat n'est garanti.</p>
+</div>
+
+<script>
+const $=id=>document.getElementById(id);
+let bars=[];
+
+/* ---------- indicateurs ---------- */
+function ema(a,n){const k=2/(n+1),o=new Array(a.length).fill(null);if(a.length<n)return o;let s=0;for(let i=0;i<n;i++)s+=a[i];o[n-1]=s/n;for(let i=n;i<a.length;i++)o[i]=a[i]*k+o[i-1]*(1-k);return o}
+function rsi(c,n=14){const o=new Array(c.length).fill(null);if(c.length<=n)return o;let g=0,l=0;for(let i=1;i<=n;i++){const d=c[i]-c[i-1];d>0?g+=d:l-=d}g/=n;l/=n;o[n]=l===0?100:100-100/(1+g/l);for(let i=n+1;i<c.length;i++){const d=c[i]-c[i-1];g=(g*(n-1)+Math.max(d,0))/n;l=(l*(n-1)+Math.max(-d,0))/n;o[i]=l===0?100:100-100/(1+g/l)}return o}
+function atr(b,n=14){const o=new Array(b.length).fill(null);const tr=b.map((x,i)=>i?Math.max(x.h-x.l,Math.abs(x.h-b[i-1].c),Math.abs(x.l-b[i-1].c)):x.h-x.l);if(b.length<=n)return o;let s=0;for(let i=1;i<=n;i++)s+=tr[i];o[n]=s/n;for(let i=n+1;i<b.length;i++)o[i]=(o[i-1]*(n-1)+tr[i])/n;return o}
+
+function analyse(b){
+  const c=b.map(x=>x.c),N=c.length-1,px=c[N];
+  const e50=ema(c,50),e200=ema(c,200),r=rsi(c),a=atr(b);
+  const A=a[N];
+  const dec=px>=1000?2:px>=10?3:5, f=v=>v.toFixed(dec);
+  const win=b.slice(-50), res=Math.max(...win.map(x=>x.h)), sup=Math.min(...win.map(x=>x.l));
+  const up=(res-px)/A, dn=(px-sup)/A;
+  const hh=Math.max(...b.slice(-20).map(x=>x.h)), ll=Math.min(...b.slice(-20).map(x=>x.l));
+  const ph=Math.max(...b.slice(-40,-20).map(x=>x.h)), pl=Math.min(...b.slice(-40,-20).map(x=>x.l));
+  const roc=(px/c[N-10]-1)*100, slope=(e50[N]-e50[N-10])/A;
+  const atrAvg=a.slice(-50).reduce((s,v)=>s+v,0)/50;
+  const R=[];
+  const d=v=>v>0?1:v<0?-1:0;
+  R.push({t:"Tendance de fond",s:d(e50[N]-e200[N]),v:`EMA50 ${f(e50[N])} · EMA200 ${f(e200[N])}`});
+  R.push({t:"Prix / EMA 50",s:d(px-e50[N]),v:`écart ${((px-e50[N])/A).toFixed(2)} ATR`});
+  R.push({t:"Pente EMA 50",s:Math.abs(slope)<0.15?0:d(slope),v:`${slope>=0?"+":""}${slope.toFixed(2)} ATR / 10 bougies`});
+  const rv=r[N];
+  R.push({t:"RSI 14",s:rv>=70||rv<=30?0:rv>55?1:rv<45?-1:0,v:`${rv.toFixed(1)}${rv>=70?" · surachat":rv<=30?" · survente":""}`});
+  R.push({t:"Momentum",s:Math.abs(roc)<0.05?0:d(roc),v:`${roc>=0?"+":""}${roc.toFixed(2)} % sur 10 bougies`});
+  const st=hh>ph&&ll>pl?1:hh<ph&&ll<pl?-1:0;
+  R.push({t:"Structure",s:st,v:st>0?"sommets et creux plus hauts":st<0?"sommets et creux plus bas":"structure mixte"});
+  R.push({t:"Marge aux niveaux",s:up>=1.5&&up>dn?1:dn>=1.5&&dn>up?-1:0,v:`résist. ${up.toFixed(1)} ATR · support ${dn.toFixed(1)} ATR`});
+  const hot=A>atrAvg*1.8;
+  R.push({t:"Volatilité ATR",s:0,filter:true,ok:!hot,v:`ATR ${f(A)}${hot?" · très élevée":" · normale"}`});
+  const dir=R.filter(x=>!x.filter), bull=dir.filter(x=>x.s>0).length, bear=dir.filter(x=>x.s<0).length;
+  let side=0; if(!hot){if(bull>=5&&bull-bear>=4)side=1;else if(bear>=5&&bear-bull>=4)side=-1}
+  return {R,bull,bear,side,hot,px,A,f,res,sup,c,e50,e200};
+}
+
+/* ---------- rendu ---------- */
+function render(){
+  const z=analyse(bars), {f}=z;
+  $("last").textContent=`${$("sym").value.toUpperCase()||"—"} ${f(z.px)}`;
+  const dial=$("dial"), score=z.side>0?z.bull:z.side<0?z.bear:Math.max(z.bull,z.bear);
+  dial.textContent=`${score}/7`;
+  dial.className="dial "+(z.side>0?"up":z.side<0?"down":"flat");
+  $("vlabel").textContent=z.side>0?"Achat possible":z.side<0?"Vente possible":"Pas de signal clair";
+  $("vlabel").className="vlabel "+(z.side>0?"up":z.side<0?"down":"");
+  $("vsub").textContent=z.hot?"Volatilité anormale : mieux vaut attendre.":
+    z.side?`${score} critères sur 7 alignés · ${$("tf").value}`:`${z.bull} haussiers · ${z.bear} baissiers · ${z.R.length-1-z.bull-z.bear} neutres`;
+  let lv;
+  if(z.side){const sl=z.px-z.side*1.5*z.A, tp=z.px+z.side*3*z.A;
+    lv=[["Entrée",f(z.px),""],["Stop · 1,5 ATR",f(sl),"down"],["Objectif · 3 ATR",f(tp),"up"]];}
+  else lv=[["Support 50 b.",f(z.sup),""],["Résistance 50 b.",f(z.res),""],["ATR 14",f(z.A),""]];
+  $("levels").innerHTML=lv.map(([k,v,c])=>`<div class="lv"><small>${k}</small><b class="${c}">${v}</b></div>`).join("");
+  $("count").textContent=`${z.bull} ▲ · ${z.bear} ▼`;
+  $("grid").innerHTML=z.R.map(x=>{
+    const cls=x.filter?(x.ok?"up":"down"):x.s>0?"up":x.s<0?"down":"flat";
+    const lab=x.filter?(x.ok?"OK":"Prudence"):x.s>0?"Haussier":x.s<0?"Baissier":"Neutre";
+    return `<div class="rd"><div class="t"><span>${x.t}</span><span class="chip ${cls}">${lab}</span></div><div class="v">${x.v}</div></div>`}).join("");
+  draw(z);
+}
+
+function draw(z){
+  const cv=$("cv"),dpr=window.devicePixelRatio||1,W=cv.clientWidth,H=cv.clientHeight;
+  cv.width=W*dpr;cv.height=H*dpr;const g=cv.getContext("2d");g.setTransform(dpr,0,0,dpr,0,0);g.clearRect(0,0,W,H);
+  const cs=getComputedStyle(document.documentElement),col=n=>cs.getPropertyValue(n).trim();
+  const n=Math.min(120,z.c.length),s=z.c.length-n;
+  const series=[z.c,z.e50,z.e200].map(a=>a.slice(s));
+  const vals=series.flat().filter(v=>v!=null).concat([z.sup,z.res]);
+  let mn=Math.min(...vals),mx=Math.max(...vals);const pad=(mx-mn)*.06;mn-=pad;mx+=pad;
+  const L=4,Rr=W-60,x=i=>L+i*(Rr-L)/(n-1),y=v=>H-6-(v-mn)/(mx-mn)*(H-12);
+  g.font="11px "+col("--f-mono");g.fillStyle=col("--muted");g.strokeStyle=col("--line");g.lineWidth=1;
+  for(let k=0;k<=3;k++){const v=mn+(mx-mn)*k/3,yy=y(v);g.beginPath();g.moveTo(L,yy);g.lineTo(Rr,yy);g.stroke();g.fillText(z.f(v),Rr+6,yy+4)}
+  g.setLineDash([4,4]);
+  [[z.res,"--down"],[z.sup,"--up"]].forEach(([v,c])=>{g.strokeStyle=col(c);g.beginPath();g.moveTo(L,y(v));g.lineTo(Rr,y(v));g.stroke()});
+  g.setLineDash([]);
+  [[series[2],"--ema200",1.5],[series[1],"--ema50",1.5],[series[0],"--fg",2]].forEach(([a,c,w])=>{
+    g.strokeStyle=col(c);g.lineWidth=w;g.beginPath();let st=false;
+    a.forEach((v,i)=>{if(v==null)return;st?g.lineTo(x(i),y(v)):(g.moveTo(x(i),y(v)),st=true)});g.stroke()});
+  g.fillStyle=col("--gold");g.beginPath();g.arc(x(n-1),y(z.px),4,0,7);g.fill();
+}
+
+/* ---------- données ---------- */
+function demo(){
+  let seed=7;const rnd=()=>(seed=(seed*16807)%2147483647)/2147483647;
+  const b=[];let p=3920;
+  for(let i=0;i<320;i++){const drift=i<160?0.35:i<230?-0.25:0.55;const o=p,cl=o+drift+(rnd()-.5)*9;
+    b.push({o,h:Math.max(o,cl)+rnd()*4,l:Math.min(o,cl)-rnd()*4,c:cl});p=cl}
+  bars=b;$("sym").value="XAUUSD";
+  $("src").innerHTML="<b>Exemple :</b> bougies simulées pour montrer l'outil. Charge ton export MT5 pour une analyse réelle.";
+  $("err").hidden=true;render();
+}
+function parse(txt){
+  const lines=txt.split(/\r?\n/).filter(l=>l.trim());
+  const delim=lines[0].includes("\t")?"\t":lines[0].split(";").length>2?";":",";
+  const rows=lines.map(l=>l.split(delim).map(x=>x.replace(/[<>"]/g,"").trim()));
+  let idx=null;const hd=rows[0].map(x=>x.toLowerCase());
+  if(hd.some(x=>/[a-z]/.test(x))){
+    const find=k=>hd.findIndex(x=>x===k||x.startsWith(k));
+    const I=[find("open"),find("high"),find("low"),find("close")];
+    if(I.every(i=>i>=0))idx=I;rows.shift();
+  }
+  const out=[];
+  for(const r of rows){
+    let v;
+    if(idx)v=idx.map(i=>parseFloat(r[i]));
+    else{v=r.filter(x=>/^-?\d+(\.\d+)?$/.test(x)).slice(0,4).map(Number)}
+    if(v.length===4&&v.every(Number.isFinite))out.push({o:v[0],h:v[1],l:v[2],c:v[3]});
+  }
+  return out;
+}
+$("file").addEventListener("change",e=>{
+  const fl=e.target.files[0];if(!fl)return;
+  const rd=new FileReader();
+  rd.onload=()=>{
+    const b=parse(rd.result);
+    if(b.length<220){$("err").textContent=`Seulement ${b.length} bougies lues. Il en faut au moins 220 pour l'EMA 200 : exporte une période plus longue.`;$("err").hidden=false;return}
+    bars=b;$("err").hidden=true;clearTimeout(timer);timer=null;
+    const m=fl.name.match(/^([A-Z0-9.]{3,12})/i);if(m)$("sym").value=m[1].toUpperCase();
+    $("src").innerHTML=`<b>Données réelles :</b> ${fl.name} · ${b.length} bougies. Analyse sur la dernière bougie du fichier.`;
+    render();
+  };
+  rd.readAsText(fl);e.target.value="";
+});
+/* ---------- direct : Twelve Data ---------- */
+const TF={M15:"15min",H1:"1h",H4:"4h",D1:"1day"};
+let timer=null;
+function store(k,v){try{v===undefined?v=localStorage.getItem(k):localStorage.setItem(k,v)}catch(e){}return v}
+function apiSymbol(s){s=s.toUpperCase().replace(/[^A-Z]/g,"");return s.length===6?s.slice(0,3)+"/"+s.slice(3):s}
+async function live(){
+  const key=$("key").value.trim();
+  if(!key){$("err").textContent="Entre ta clé API Twelve Data (gratuite sur twelvedata.com).";$("err").hidden=false;return}
+  store("radar_key",key);
+  const sym=apiSymbol($("sym").value), iv=TF[$("tf").value];
+  $("src").innerHTML=`<b>Chargement…</b> ${sym} · ${$("tf").value}`;
+  try{
+    const r=await fetch(`https://api.twelvedata.com/time_series?symbol=${encodeURIComponent(sym)}&interval=${iv}&outputsize=400&timezone=UTC&apikey=${encodeURIComponent(key)}`);
+    const j=await r.json();
+    if(j.status==="error"||!j.values)throw new Error(j.message||"Réponse vide");
+    /* marché fermé : bougies plates à ignorer, sinon elles faussent l'ATR et les EMA */
+    const b=j.values.slice().reverse().map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close})).filter(x=>x.h>x.l);
+    if(b.length<220)throw new Error(`seulement ${b.length} bougies reçues`);
+    bars=b;$("err").hidden=true;
+    const t=j.values[0].datetime;
+    $("src").innerHTML=`<b>En direct :</b> ${sym} · ${$("tf").value} · dernière bougie ${t.slice(0,16)} GMT · actualisé à ${new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}`;
+    render();
+    clearTimeout(timer);timer=setTimeout(live,120000);
+  }catch(e){
+    clearTimeout(timer);
+    $("err").textContent="Twelve Data : "+e.message+". Vérifie la clé, le symbole, ou attends une minute (limite gratuite : 8 requêtes/min).";
+    $("err").hidden=false;
+    $("src").innerHTML="<b>Pas de données en direct.</b> Le dernier affichage reste visible.";
+  }
+}
+$("live").addEventListener("click",live);
+$("demo").addEventListener("click",()=>{clearTimeout(timer);demo()});
+$("sym").addEventListener("input",()=>bars.length&&render());
+$("tf").addEventListener("change",()=>timer?live():bars.length&&render());
+$("sym").addEventListener("change",()=>timer&&live());
+window.addEventListener("resize",()=>bars.length&&draw(analyse(bars)));
+matchMedia("(prefers-color-scheme: dark)").addEventListener?.("change",()=>bars.length&&render());
+demo();
+const saved=store("radar_key");
+if(saved){$("key").value=saved;live()}
+</script>
