@@ -253,7 +253,12 @@ async function live(){
     const j=await r.json();
     if(j.status==="error"||!j.values)throw new Error(j.message||"Réponse vide");
     /* marché fermé : bougies plates à ignorer, sinon elles faussent l'ATR et les EMA */
-    const b=j.values.slice().reverse().map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close})).filter(x=>x.h>x.l);
+    /* or fermé du vendredi 21h au dimanche 22h GMT : on retire ces bougies en intraday */
+    const intraday=iv!=="1day";
+    const open=dt=>{const d=new Date(dt.replace(" ","T")+"Z"),w=d.getUTCDay(),h=d.getUTCHours();
+      return !(w===6||(w===0&&h<22)||(w===5&&h>=21))};
+    const b=j.values.slice().reverse().filter(v=>!intraday||open(v.datetime))
+      .map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close})).filter(x=>x.h>x.l);
     if(b.length<220)throw new Error(`seulement ${b.length} bougies reçues`);
     bars=b;$("err").hidden=true;
     const t=j.values[0].datetime;
