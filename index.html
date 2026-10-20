@@ -91,7 +91,7 @@ button:focus-visible,.file:focus-within,input:focus-visible,select:focus-visible
     <div class="ctrls">
       <input type="text" id="sym" value="XAUUSD" aria-label="Symbole">
       <select id="tf" aria-label="Unité de temps">
-        <option>M15</option><option selected>H1</option><option>H4</option><option>D1</option>
+        <option>M15</option><option>H1</option><option selected>H4</option><option>D1</option>
       </select>
     </div>
   </header>
@@ -159,7 +159,7 @@ button:focus-visible,.file:focus-within,input:focus-visible,select:focus-visible
     </div>
   </section>
 
-  <p class="disc">Outil d'aide à la décision, pas une prédiction. Il résume ce que disent les indicateurs sur les bougies chargées. Aucun résultat n'est garanti.<br>Version 7</p>
+  <p class="disc">Outil d'aide à la décision, pas une prédiction. Il résume ce que disent les indicateurs sur les bougies chargées. Aucun résultat n'est garanti.<br>Version 8</p>
 </div>
 
 <script>
@@ -354,6 +354,9 @@ async function getBars(key,size){
     return !(w===6||(w===0&&h<22)||(w===5&&h>=21))};
   const b=j.values.slice().reverse().filter(v=>!intraday||open(v.datetime))
     .map(v=>({o:+v.open,h:+v.high,l:+v.low,c:+v.close,t:v.datetime})).filter(x=>x.h>x.l);
+  /* bougie en cours : on la retire pour n'analyser que des bougies clôturées, comme l'EA et le backtest */
+  const IVMS={"15min":9e5,"1h":36e5,"4h":144e5,"1day":864e5}[iv];
+  if(b.length&&IVMS&&Date.parse(b[b.length-1].t.replace(" ","T")+"Z")+IVMS>Date.now())b.pop();
   /* flux figé : bougies dont l'amplitude est < 15 % de l'amplitude médiane */
   const med=b.map(x=>x.h-x.l).sort((p,q)=>p-q)[Math.floor(b.length/2)]||0;
   const before=b.length;
@@ -367,8 +370,8 @@ async function live(){
     const {b,sym,j,dropped}=await getBars(key,400);
     if(b.length<220)throw new Error(`seulement ${b.length} bougies reçues`);
     bars=b;csvBars=null;$("err").hidden=true;
-    const t=j.values[0].datetime;
-    $("src").innerHTML=`<b>En direct :</b> ${sym} · ${$("tf").value} · dernière bougie ${t.slice(0,16)} GMT · actualisé à ${new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}${dropped?` · ${dropped} bougies figées ignorées`:""}`;
+    const t=b[b.length-1].t;
+    $("src").innerHTML=`<b>En direct :</b> ${sym} · ${$("tf").value} · dernière bougie clôturée ${t.slice(0,16)} GMT · actualisé à ${new Date().toLocaleTimeString("fr-FR",{hour:"2-digit",minute:"2-digit"})}${dropped?` · ${dropped} bougies figées ignorées`:""}`;
     render();
     clearTimeout(timer);timer=setTimeout(live,120000);
   }catch(e){
